@@ -1,0 +1,22 @@
+# do not commit python .pyc files
+*.pyc
+*.pyo
+*.DS_Store
+__pycache__/
+
+**/env/
+**/venv/
+**/.idea/copilot*
+
+*.vscode
+
+# do not commit the config file with passwords
+*/config/dev.json
+
+# do not commit local install, tmp, logs
+**/tmp/
+**/logs/
+**/build/
+
+# do not commit ipython notebook checkpoints
+**/.ipynb_checkpoints/
