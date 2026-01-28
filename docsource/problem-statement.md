@@ -1,0 +1,216 @@
+# Distributed Logging System Design
+[Problem Statement Reference](https://github.com/SweetCodey/system-design-masterclass/blob/main/10.%20Design%20Distributed%20Logging%20System/Distributed%20Logging%20System%20Design.md)
+
+## **Introduction**
+
+Modern software applications often consist of microservices distributed across many servers or containers. 
+Each service generates its own log files, making troubleshooting very challenging when an issue spans multiple services. For example, if 
+a single user request flows through several microservices, the relevant log entries will be scattered across different servers.
+
+<img src="resources/Intro_1.png" alt="Introduction to Distributed Logging System" width="500"/>
+
+Without a centralized approach to logging, teams face several difficulties:
+
+* **Slow Debugging:** Engineers must manually access and comb through logs on numerous machines, a time-consuming and error-prone process.
+* **Lack of visibility:** It is hard to get a holistic view of system health and performance without aggregating logs; 
+important patterns or errors might go unnoticed when are siloed.
+* **Inconsistent Logging:** Each service might use different log formats or levels, hindering the ability to correlate 
+events end-to-end. Example A logs an errors as `{\"error\": \"Timeout\", \"code\": 504}` while 
+Service B logs it as `ERROR 504: Gateway Timeout occurred`. When searching it's hard to match these two events together
+since the format and wording are inconsistent.
+
+To address these challenges, we design a **distributed logging system** that **centralizes log data** from all services.
+This allows for unified monitoring, faster debugging, and the ability to trace events across the entire application. Such
+a system forms a critical part of observability, complementing metrics and distributed tracing by providing the raw event history
+needed to diagnose complex issues.
+
+<img src="resources/Intro_2.png" alt="Distributed Logging System Overview" width="400"/>
+
+## **System Requirements**
+
+**_Functional Requirements_:**
+
+* **Unified Log Collection:** The system should collect logs from all application services and environments into a central repository,
+     instead of leaving logs isolated on individual hosts.
+* **Efficient Seach & Retrieval:** Users must be able to query logs quickly (by keywords, timestamps, service, etc.) to
+     pinpoint specific events. The system should support searching across all logs and even tracing an event's path through multiple
+     services (end-to-end request trace).
+* **Distributed Storage:** Log data should be stored in a distributed storage system. The storage must handle large volumes
+    of log data and provide redundancy so that logs are durably preserved.
+* **Centralized Visualization & Monitoring:** Provide a unified interface (dashboard or UI) where developers can view logs
+    from all services in one place. This includes the ability to set up alerts/notifications when certain log patterns occur 
+    (e.g. a high rate of errors) for rapid issue detection.
+* **Log Retention:** The system should retain logs. Logs might need to be retained for a certain period (for debugging or compliance) 
+    and then purged or archived to comply with regulations and save storage.
+
+**_Non-Functional Requirements_:**
+* **Minimally intrusive and low latency:** Logging should not slow down the app. Ingestion is asynchronous so request handling is not blocked.
+    _Target latencies_: ingest (agent → Kafka) p95 ≤ 25 ms; search p95 ≤ 100 ms.
+* **High Scalability:** The system scales horizontally and handles spikes without data loss.
+    _Scale targets_: ingest rate ≈ 300k logs/sec; hot storage ≈ 5 TB/day; search load ≈ 200 QPS.
+* **High Availability and Reliability:** The pipeline keeps accepting and storing logs during failures, with no single point of failure
+    and durable storage. _Availability target_: end-to-end ≥ 99.9%.
+* **Security:** Ensure proper access control and data handling for logs. Logs often contain sensitive information, so the system
+    should restrict access to authorized users and avoid logging sensitive data (like passwords or PII) in the first place.
+
+## **High Level Design**
+
+### **Client request and correlation ID**
+
+<img src="resources/Client_request_and_correlation_ID.png" alt="Client Request and Correlation ID" width="600"/>
+
+1. A client makes a request to the system
+2. The API Gateway creates a **Correlation ID**. This is a unique tag added to the request so all related logs can be linked.
+   The request then flows to one of the microservices.
+
+**Why Correlation ID?**
+
+* Helps developers trace a single request across multiple services.
+
+### **Collecting logs on each service**
+
+<img src="resources/Collecting_log_each_service.png" alt="Collecting Logs on Each Service" width="600"/>
+
+1. Each microservice writes logs (errors, info, debug) to its local files. A *DaemonSet log agent* runs on every service
+   machine (at a node level). It continuously reads new log lines from the services, adds details like service name, time, etc.
+   and then forwards them. It also masks sensitive fields like passwords or PII before sending.
+
+**Technology Choices**
+
+* **Log Agent (Filebeat/Fluent Bit):** lightweight, efficient, and designed for collecting logs from many machines.
+
+_**NOTE**_: In the above diagram we never showed relation between these microservices but they might communicate with each other
+ and produce their own logs as shown below.
+
+<img src="resources/Microservices_relationship.png" alt="Microservices Relationship" width="500"/>
+
+### **Kafka for buffering**
+
+![Kafka for Buffering](resources/Kafka_for_buffering.png)
+1. Kafka stores incoming logs safely.
+   1. Logs are split into **topics** (like folders) and **partitions** (subdivisions) to handle high volume.
+   2. Each log record usually contains fields like timestamp, service name, correlation ID, log level, and message. 
+      Each new log is appended to the end with an **offset** number. This makes replaying the message and recovery easy.
+   3. Consumers (like Flink) read logs at their own pace by keeping track of offsets.
+
+**Technology Choices**
+
+* **Apache Kafka:** a distributed message queue
+  * Provides durability by replicating logs across multiple servers.
+  * Decouples producers (log agents) from consumers (Flink, storage).
+  * Handles spikes smoothly because logs can wait in partitions until consumed.
+
+### **Processing with Flink**
+![Processing with Flink](resources/Processing_with_Flink.png)
+1. Apache Flink grabs the logs from Kafka and does the following:
+    
+    * **Parsing/Validation:** If logs are raw text, Flink parses them into structured form. If already JSON/Protobuf, it validates against a schema.
+    * **Enrichment:** Add metadata like region, k8s pod labels, build version, etc.
+    * **Filtering:** Drop noisy logs (like DEBUG in production) or sample them (keep 1% of very frequent INFO logs).
+    * **Aggregation:** Use windowing (sliding, tumbling, hopping windows) to compute metrics like error rate per minute, average latency, or top N error codes. We will discuss windowing later.
+    * **Routing:** Split the stream into multiple outputs. We will learn about them in detail next.
+      * Full, enriched events → `logs.enriched` which are sent to OpenSearch.
+      * Aggregated metrics → `logs.metrics` which are sent to TSDB.
+      * Batches for archival → hourly Parquet files sent to S3.
+
+**Technology Choices**
+
+* **Apache Flink:** a stream processing engine. In simple words, it is a system that reads data as it arrives and processes
+                    it in real-time. Great for transformations, filtering, and aggregations on streams of logs.
+
+### **Storage Backend**
+![Storage Backend](resources/Storage_Backend.png)
+1. **ElasticSearch:** Takes enriched logs from Flink and then creates special inverted indices for it. 
+                      This makes it superfast for searching logs on it. Developers usually seach logs using keyword, service name
+                      or correlation ID. More details about ElasticSearch can be found [here](https://github.com/SweetCodey/system-design-masterclass/blob/main/7.%20Design%20Search%20System/Search%20Systems%20Design.md)
+2. **TimeScaleDB:** It is a database built on top of PostgreSQL but optimized for time-series data (data tracked over time like metrics).
+                    This stores metrics like counts, error rates, or latency numbers which are used for tracking system trends
+                    over time and setting up alerts.
+3. **S3:** This acts as an archive and also as a data lake for advanced analysis. It stores large volumes of logs for months
+           or years at a very low cost. Logs are written in **Parquet** format daily for efficient storage.
+
+**Technology Choices**
+
+* **AWS S3:** A reliable object storage service that's cheap and highly durable.
+* **Parquet:** A column file format that compresses data well and allows faster queries on big datasets.
+
+### **Query and Dashboards**
+
+![Query and Dashboards](resources/Query_and_dashboards.png)
+
+* **Kibana** (with ElasticSearch):
+  * Lets developers search logs and build dashboards
+  * **Why chosen?**: Easy to use UI tightly integrated with ElasticSearch.
+* **Grafana** (with TimeScaleDB):
+  * Shows metrics and trends on dashboards
+  * Can send alerts or error spikes or latency issues.
+  * **Why chosen?**: Popular and flexible tool for time-series visualization.
+* **AWS Athena** (with S3):
+  * Runs large SQL queries directly on archived logs.
+  * **Why chosen?**: Serverless. Scales easily for ad-hoc analysis.
+
+With the help of above, a developer can:
+1. **Debug a Request:** Seach by Correlation ID (or other keywords) in ElasticSearch/Kibana.
+2. **Spot Errors:** Grafana alerts when error rate goes up in TimeScaleDB.
+3. **Run Reports:** Athena can query across months of Parquet logs in S3 to create reports.
+
+So, that gives us the final design as:
+![Final Design](resources/Final_Design.png)
+
+
+### DEEP DIVE INSIGHTS
+
+#### Protobuf/Avro Serialization
+
+* Why do we need serialization?
+  * Logs are being generated continuously by many microservices. If we send them as raw JSON or plain text payloads become large.
+    (lots of repeating keys like "timestamp": in every log) and network traffic increases, which means higher latency and costs.
+    It means converting data into a compact binary format before sending it over the network.
+* For this we usually use Protobuf or Avro for serialization because both convert structured data into smaller, faster, binary messages using a predefined schema.
+  * **Protobuf (Protocol Buffers)** is developed by Google and uses .proto schema files. It's compact, language-independent, and works great with gRPC.
+  * **Avro** is common in the Hadoop ecosystem and works well with Kafka. It stores schema along with the data, making it easy to evolve fields over time.
+* How it works in our design?
+![Protobuf Avro Serialization](resources/Protobuf_Avro_Serialization.png)
+  * Microservices produces a log event (say as a JSON internally).
+  * Log Agent serializes it into Protobuf/Avro before sending to Kafka.
+    * Example: Instead of sending ``{"service": "payments", "ts": "2025-09-25T12:00:00Z", "level": "ERROR"}``, it sends a binary-encoded messages that is much smaller.
+  * Kafka stores serialized logs in topics (like `logs.raw`).
+  * Consumers (Flink, ElasticSearch, TSDB) use the same schema to deserialize back into human-readable form or structured objects.
+  * This ensures **low latency, high throughput** log pipelines.
+
+#### Flink Beginner's Guide
+
+* What is Apache Flink?
+  * It is a framework for **real-time stream processing**. It processes data as it arrives (streams) and can perform transformations, aggregations, filtering, and enrichment on the fly.
+    In short, think of Flink as a data transformer that reads from Kafka, cleans and enriches the data, and sends it to the right places.
+* How Flink transforms our log data?
+![Apache Flink](resources/Apache_Flink.png)
+  * Let's say Kafka receives this raw log event:
+``{"service":"payments","status":500,"latency":3100,"region":"us-east-1"}``
+    * Step 1: Flink reads it from logs.raw
+    * Step 2: Flink enriches it i.e. adds more derived fields:
+``{"service":"payments","status":500,"status_class":5xx,"latency":3100,"region":"us-east-1","timestamp":"2025-09-25T12:00.00Z}``
+    * Step 3: Flink filters out unnecessary fields (e.g. debug logs).
+    * Step 4: Flink computes aggregate like:
+``{"service":"payments","window":"5min","error_rate":0.12,"avg_latency":2800}``
+    * Step 5:
+      * Sends enriched logs → OpenSearch
+      * Sends aggregated metrics → TimeScaleDB
+      * Stores hourly batches → S3
+* How does metrics aggregation happen?
+  * Flink groups the logs by time windows to calculate metrics like error rate or latency trends. Here are the common windowing strategies:
+    * Tumbling Window: Fixed, non-overlapping time intervals. Example:
+        If you want the average latency every 10 minutes, Flink groups all logs that arrive between
+        ``12:00-12:10``, ``12:10-12:20``, and so on. So we will have one average latency each for each of those window.
+![Tumbling Window](resources/Tumbling_Window.png)
+    * Hopping Window: Fixed window size, but windows overlap because they start at regular hops. Example: A 10-minute with a 5-minute hop means:
+      * First Window: ``12:00-12:10``
+      * Second Window: ``12:05-12:15``
+      * Third Window: ``12:10-12:20``
+      * So a single log at ``12:12`` contributes to two windows. This is useful for rolling averages or moving trends.
+![Hopping Window](resources/Hopping_Window.png)
+    * Sliding Window: This is like a continuously moving window. It updates with every new event. 
+      Example: If you want the latest error rate over the past 10 minutes, the window slides by every incoming log.
+      Flink recomputes metrics dynamically as new data arrives. This is used for real-time monitoring dashboards.
+![Sliding Window](resources/Sliding_Window.png)
+
