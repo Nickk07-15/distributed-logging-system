@@ -3,6 +3,12 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/distributed-logging-system.iml" filepath="$PROJECT_DIR$/.idea/distributed-logging-system.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dls-agent-log-producer/.idea/dls-agent-log-producer.iml" filepath="$PROJECT_DIR$/dls-agent-log-producer/.idea/dls-agent-log-producer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dls-elasticsearch-proxy/.idea/dls-elasticsearch-proxy.iml" filepath="$PROJECT_DIR$/dls-elasticsearch-proxy/.idea/dls-elasticsearch-proxy.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dls-flink-log-consumer/.idea/dls-flink-log-consumer.iml" filepath="$PROJECT_DIR$/dls-flink-log-consumer/.idea/dls-flink-log-consumer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dls-kafka-broker/.idea/dls-kafka-broker.iml" filepath="$PROJECT_DIR$/dls-kafka-broker/.idea/dls-kafka-broker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dls-log-monitoring-dashboard/.idea/dls-log-monitoring-dashboard.iml" filepath="$PROJECT_DIR$/dls-log-monitoring-dashboard/.idea/dls-log-monitoring-dashboard.iml" />
+      <module fileurl="file://$PROJECT_DIR$/libraries/.idea/libraries.iml" filepath="$PROJECT_DIR$/libraries/.idea/libraries.iml" />
     </modules>
   </component>
 </project>
