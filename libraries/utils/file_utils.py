@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import csv
+from typing import Any
 
 import base64
 import glob
@@ -148,7 +149,7 @@ class FileUtil:
             logger.warning(f"Error unzipping file: {zip_error}")
             raise ce.BadZipFileException(f"Error unzipping file: {zip_error}")
 
-        except Exception as error:
+        except Exception:
             raise
 
     @staticmethod
@@ -189,13 +190,13 @@ class FileUtil:
         return new_file_path
 
     @staticmethod
-    def write_csv(file_path: str, data: list[dict[str, any]]) -> None:
+    def write_csv(file_path: str, data: list[dict[str, Any]]) -> None:
         """
         Write data to a CSV file
 
         Args:
             file_path (str): Path to the file
-            data (list[dict[str, any]]): Data to be written to the file
+            data (list[dict[str, Any]]): Data to be written to the file
 
         Returns (None):
 
