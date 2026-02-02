@@ -1,0 +1,33 @@
+{
+  "__doc__": {
+    "__note_01__": "{env} will be replaced with respective env variable",
+    "__note_02__": "{service_name} will be replaced with the value of `SERVICE_NAME` key"
+  },
+  "SEVICE_NAME": "dls-kafka-broker",
+  "LOGGER": {
+    "log_level": "INFO",
+    "process_tag": "{service_name}",
+    "log_dir_root": "/data/dls/logs",
+    "log_format": "%(asctime)s: [{process_tag}]:[%(process)d] - [%(trace_id)s] - %(levelname)s: %(message)s (%(filename)s:%(lineno)d)"
+  },
+  "ZOOKEEPER": {
+    "zookeeper_client_port": "<zookeeper-port>",
+    "__image_name": "confluentinc/cp-zookeeper:7.4.0"
+  },
+  "KAFKA_BROKER": {
+    "kafka_zookeeper_connect": "<zookeeper-endpoint>:<zookeeper-port>",
+    "kafka_advertised_listeners": "PLAINTEXT://<kafka-endpoint>:<kafka-port>",
+    "kafka_listeners": "PLAINTEXT://<kafka-endpoint>:<kafka-port>",
+    "kafka_offsets_topic_replication_factor": 1,
+    "kafka_broker_id": 1,
+    "__image_name": "confluentinc/cp-kafka:7.4.0"
+  },
+  "CONSTANTS": {
+    "local_download_folder": "/tmp/"
+  },
+  "DEBUG": {
+    "debug_server": false,
+    "skip_post_process": false,
+    "single_threaded": false
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "LOGGER": {
+    "log_level": "INFO",
+    "log_dir_root": "logs",
+    "log_format": "[%(trace_id)s] - %(levelname)s: %(message)s (%(filename)s:%(lineno)d)"
+  },
+  "ZOOKEEPER": {
+    "zookeeper_client_port": 2181
+  },
+  "KAFKA_BROKER": {
+    "kafka_zookeeper_connect": "<zookeeper-endpoint>:<zookeeper-port>",
+    "kafka_advertised_listeners": "PLAINTEXT://<kafka-endpoint>:<kafka-port>",
+    "kafka_listeners": "PLAINTEXT://<kafka-endpoint>:<kafka-port>"
+  },
+  "CONSTANTS": {
+    "local_download_folder": "tmp/"
+  },
+  "DEBUG": {
+    "debug_server": true,
+    "skip_post_process": false,
+    "single_threaded": true
+  }
+}
