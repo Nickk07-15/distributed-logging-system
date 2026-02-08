@@ -100,20 +100,23 @@ class KafkaInitializer:
                 container = self.docker_client.containers.get(name)
                 logger.info(f"Cleaning up container {name} ...")
                 container.stop()
-                container.remove()
+                container.remove(force=True)
                 logger.info(f"Cleaned up container {name} successfully.")
             except NotFound:
                 logger.info(f"Container {name} not found, skipping cleanup ...")
+                sleep(5)
+                continue
 
             except APIError as api_error:
-                logger.info(f"Error while cleaning up container {name}: {api_error}")
-                logger.error(f"[ERROR] Error: {api_error}")
-                raise
+                logger.info(f"[ERROR] Error while cleaning up container {name}: {api_error}")
+                logger.error(f"Error: {api_error}")
+                sleep(5)
+                continue
 
             except Exception as error:
-                logger.info(f"Unexpected error while cleaning up container {name}: {error}")
-                logger.error(f"[ERROR] Unexpected Error: {error}")
-                raise
+                logger.info(f"[ERROR] Unexpected error while cleaning up container {name}: {error}")
+                logger.error(f"Unexpected Error: {error}")
+                sleep(5)
 
     def __create_network(self):
         """

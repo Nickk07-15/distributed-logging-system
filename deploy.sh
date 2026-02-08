@@ -39,8 +39,8 @@ docker compose -f "$image_name"-docker-compose.yml down --volumes --remove-orpha
 docker image prune -f
 
 # build without cache
-CONTAINER_NAME=$container_name docker compose -f "$image_name"-docker-compose.yml build --no-cache
-CONTAINER_NAME=$container_name docker compose -f "$image_name"-docker-compose.yml up -d
+CONTAINER_NAME=$container_name IMAGE_NAME=$image_name docker compose -f "$image_name"-docker-compose.yml build --no-cache
+CONTAINER_NAME=$container_name IMAGE_NAME=$image_name docker compose -f "$image_name"-docker-compose.yml up -d
 
 # Check if the container is running
 if [ "$(docker ps -q -f name="$container_name")" ]; then

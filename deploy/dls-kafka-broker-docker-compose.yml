@@ -3,6 +3,7 @@ services:
     build:
       context: ../
       dockerfile: dls-kafka-broker/docker/Dockerfile
+    image: ${IMAGE_NAME}:latest
     container_name: ${CONTAINER_NAME:-dls-kafka-broker-dev-container}
     volumes:
       - ~/.docker/run/docker.sock:/var/run/docker.sock
