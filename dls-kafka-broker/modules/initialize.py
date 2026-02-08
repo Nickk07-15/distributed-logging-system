@@ -108,6 +108,7 @@ class KafkaInitializer:
                 continue
 
             except APIError as api_error:
+                logger.warning(f"Container {name} is already being removed by another process, skipping ...")
                 logger.info(f"[ERROR] Error while cleaning up container {name}: {api_error}")
                 logger.error(f"Error: {api_error}")
                 sleep(5)

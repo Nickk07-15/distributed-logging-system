@@ -21,7 +21,7 @@ then
   do if true; then break; fi; done
 
 else
-  CONTAINER_NAME=$1
+  container_name=$1
   echo "Error: This script does not accept arguments"
   exit 1
 fi
@@ -29,18 +29,28 @@ fi
 # set variables
 container_name="$image_name-$env-container"
 
+# Export Variables
+export IMAGE_NAME="$image_name"
+export CONTAINER_NAME="$container_name"
+
 # Deploy the container using docker compose
 cd deploy || exit
 
 # Remove orphan container and volumes on down
 docker compose -f "$image_name"-docker-compose.yml down --volumes --remove-orphans
 
+# Wait for a few seconds to ensure the container is fully stopped and removed
+sleep 5
+
 # Prune unused images after rebuild
 docker image prune -f
 
+# Wait for a few seconds to ensure the images are pruned
+sleep 5
+
 # build without cache
-CONTAINER_NAME=$container_name IMAGE_NAME=$image_name docker compose -f "$image_name"-docker-compose.yml build --no-cache
-CONTAINER_NAME=$container_name IMAGE_NAME=$image_name docker compose -f "$image_name"-docker-compose.yml up -d
+docker compose -f "$image_name"-docker-compose.yml build --no-cache
+docker compose -f "$image_name"-docker-compose.yml up -d
 
 # Check if the container is running
 if [ "$(docker ps -q -f name="$container_name")" ]; then
