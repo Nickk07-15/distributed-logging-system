@@ -3,7 +3,18 @@
     "__note_01__": "{env} will be replaced with respective env variable",
     "__note_02__": "{service_name} will be replaced with the value of `SERVICE_NAME` key"
   },
-  "SEVICE_NAME": "dls-kafka-broker",
+  "SERVICE_NAME": "dls-kafka-broker",
+  "SSM_KEY_FORMAT": "{service_name}-{env}",
+  "SECRETS": {
+    "enabled": true,
+    "SENTRY": {
+      "enabled": true,
+      "ssm_key": "{env}.<team>.sentry.credentials",
+      "values": {
+        "SENTRY.dsn": "{service_name}"
+      }
+    }
+  },
   "LOGGER": {
     "log_level": "INFO",
     "process_tag": "{service_name}",

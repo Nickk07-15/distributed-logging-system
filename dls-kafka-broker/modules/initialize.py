@@ -2,8 +2,11 @@
 """
 Kafka Initializer Module, config and starts a Kafka Broker
 """
+import os
+import sys
 import logging
 import docker
+from docker import DockerClient
 from docker.errors import NotFound, APIError
 from time import sleep
 
@@ -24,7 +27,42 @@ class KafkaInitializer:
     def __init__(self, kafka_props_: dict, zookeeper_props_: dict):
         self.kafka_props = kafka_props_
         self.zookeeper_props = zookeeper_props_
-        self.docker_client = docker.from_env()
+        self.docker_client = self._get_docker_client()
+
+    def _get_docker_client(self) -> DockerClient:
+        """
+        Initializes the Docker Client for Kafka Broker
+
+        Returns:
+            DockerClient: An instance of the Docker Client for managing containers.
+        """
+        socket_paths = [
+            "/var/run/docker.sock",  # Default Docker socket path
+            os.path.expanduser("~/.docker/run/docker.sock"),
+        ]
+
+        for socket_path in socket_paths:
+            if os.path.exists(socket_path):
+                try:
+                    client = DockerClient(base_url=f"unix://{socket_path}")
+                    client.ping()
+                    logger.info(f"Docker Client initialized using socket: {socket_path}")
+                    return client
+
+                except docker.errors.DockerException as docker_exception:
+                    logger.warning(f"[ERROR] Docker Client exception: {docker_exception}, exiting ...")
+
+        # Fallback to environment-based client initialization if socket paths are not available
+        try:
+            client = docker.from_env()
+            client.ping()
+            logger.info("Docker Client is ready.")
+            return client
+        except docker.errors.DockerException as docker_exception:
+            logger.info(f"[ERROR] Docker Client exception: {docker_exception}, exiting ...")
+            logger.error(f"Error: {docker_exception.__class__.__name__}")
+            logger.exception(docker_exception)
+            sys.exit(1)
 
     def start(self):
         """
@@ -104,7 +142,7 @@ class KafkaInitializer:
 
         """
         logger.info("Starting Zookeeper container ...")
-        zookeeper_env = {key.upper(): str(value) for key, value in self.zookeeper_props if not key.startswith("__")}
+        zookeeper_env = {key.upper(): str(value) for key, value in self.zookeeper_props.items() if not key.startswith("__")}
         zookeeper_image = self.zookeeper_props.get("__image_name")
         try:
             zookeeper = self.docker_client.containers.run(

@@ -1,4 +1,7 @@
 {
+  "SECRETS": {
+    "enabled": false
+  },
   "LOGGER": {
     "log_level": "INFO",
     "log_dir_root": "logs",

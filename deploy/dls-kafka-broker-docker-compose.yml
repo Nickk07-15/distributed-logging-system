@@ -1,0 +1,23 @@
+services:
+  dls-kafka-broker:
+    build:
+      context: ../
+      dockerfile: dls-kafka-broker/docker/Dockerfile
+    container_name: ${CONTAINER_NAME:-dls-kafka-broker-dev-container}
+    volumes:
+      - ~/.docker/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    tmpfs:
+      - /tmp
+
