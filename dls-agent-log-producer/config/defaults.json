@@ -1,0 +1,41 @@
+{
+  "__doc__": {
+    "__note_01__": "{env} will be replaced with respective env variable",
+    "__note_02__": "{service_name} will be replaced with the value of `SERVICE_NAME` key"
+  },
+  "SERVICE_NAME": "dls-agent-log-producer",
+  "SSM_KEY_FORMAT": "{service_name}-{env}",
+  "SECRETS": {
+    "enabled": false
+  },
+  "LOGGER": {
+    "log_level": "INFO",
+    "process_tag": "{service_name}",
+    "log_dir_root": "/data/dls/logs",
+    "log_format": "%(asctime)s: [{process_tag}]:[%(process)d] - [%(trace_id)s] - %(levelname)s: %(message)s (%(filename)s:%(lineno)d)"
+  },
+  "KAFKA_PRODUCER": {
+    "bootstrap_servers": "localhost:9092",
+    "topic": "logs.raw",
+    "acks": "1",
+    "retries": 3,
+    "queue_buffering_max_messages": 100000,
+    "queue_buffering_max_kbytes": 1048576,
+    "batch_num_messages": 500,
+    "linger_ms": 100
+  },
+  "LOG_AGENT": {
+    "handler_queue_size": 50000,
+    "drain_batch_size": 200,
+    "drain_interval_seconds": 0.5,
+    "fallback_to_stderr": true,
+    "schema_version": "1.0",
+    "environment": "{env}"
+  },
+  "CONSTANTS": {
+    "local_download_folder": "/tmp/"
+  },
+  "DEBUG": {
+    "debug_server": false
+  }
+}
