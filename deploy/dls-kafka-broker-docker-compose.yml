@@ -1,24 +1,69 @@
 services:
-  dls-kafka-broker:
-    build:
-      context: ../
-      dockerfile: dls-kafka-broker/docker/Dockerfile
-    image: ${IMAGE_NAME}:latest
-    container_name: ${CONTAINER_NAME:-dls-kafka-broker-dev-container}
-    volumes:
-      - ~/.docker/run/docker.sock:/var/run/docker.sock
-    environment:
-      - PYTHONUNBUFFERED=1
-    restart: no
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          memory: 1024M
-    tmpfs:
-      - /tmp
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: dls-zookeeper
+    networks:
+      - dls-net
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: dls-kafka
+    networks:
+      - dls-net
+    ports:
+      - "9092:9092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # PLAINTEXT_HOST allows connections from the Docker host (localhost:9092)
+      # PLAINTEXT allows inter-container communication (kafka:29092)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # kafka-ui provides a lightweight web UI for inspecting topics, consumer
+  # groups, and messages — useful during development.
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: dls-kafka-ui
+    networks:
+      - dls-net
+    ports:
+      - "8080:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: dls-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    restart: unless-stopped
+
+networks:
+  dls-net:
+    name: dls-net
+    driver: bridge

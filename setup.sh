@@ -2,7 +2,6 @@ array=(
   "dls-agent-log-producer"
   "dls-elasticsearch-proxy"
   "dls-flink-log-consumer"
-  "dls-kafka-broker"
   "dls-log-monitoring-dashboard"
   "libraries"
 )
